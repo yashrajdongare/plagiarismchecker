@@ -20,6 +20,9 @@ def detect_ai_content(text: str) -> dict:
     """
     api_key = os.environ.get("ZEROGPT_API_KEY", "")
 
+    if not api_key:
+        return _fallback_result("ZeroGPT API key not configured (set ZEROGPT_API_KEY)")
+
     headers = {
         "Content-Type": "application/json",
         "ApiKey": api_key,
