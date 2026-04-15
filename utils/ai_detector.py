@@ -49,7 +49,7 @@ def detect_ai_content(text: str) -> dict:
                 )
 
             data = response.json()
-            result_data = data.get("data", data)
+            result_data = data.get("data") or data
 
             ai_score = float(result_data.get("aiScore", result_data.get("fakePercentage", 0)))
             is_human = bool(result_data.get("isHuman", ai_score < 50))
