@@ -1,14 +1,19 @@
 """AI detection module using ZeroGPT API with local heuristic fallback."""
 
-import math
 import os
 import re
+import statistics
 import time
 import requests
 
 ZEROGPT_API_URL = "https://api.zerogpt.com/api/detect/detectText"
 MAX_RETRIES = 3
 RETRY_DELAY = 2  # seconds
+
+# Sentence-level threshold for marking a sentence as AI-generated.
+# Lower than the document-level threshold (40) because a single sentence
+# containing even one AI marker phrase is a strong local signal.
+SENTENCE_AI_THRESHOLD = 30
 
 # Phrases that appear disproportionately in AI-generated text
 _AI_PHRASES = [
@@ -210,8 +215,9 @@ def _local_heuristic_detection(text: str, error: str | None = None) -> dict:
     # AI text tends to have more uniform sentence lengths than human text.
     sent_lengths = [len(s.split()) for s in sentences if len(s.split()) > 2]
     if len(sent_lengths) > 2:
-        mean = sum(sent_lengths) / len(sent_lengths)
-        std = math.sqrt(sum((x - mean) ** 2 for x in sent_lengths) / len(sent_lengths))
+        mean = statistics.mean(sent_lengths)
+        # Use population stdev (consistent with coefficient of variation interpretation)
+        std = statistics.pstdev(sent_lengths)
         cv = std / max(mean, 1)  # coefficient of variation
         # Low CV (≤ 0.35) suggests AI-style uniformity
         uniformity_score = max(0.0, (0.5 - cv) / 0.5) * 25
@@ -245,7 +251,7 @@ def _local_heuristic_detection(text: str, error: str | None = None) -> dict:
         sentence_results.append(
             {
                 "text": s,
-                "ai_generated": bool(s_phrase_hits > 0 or s_score >= 30),
+                "ai_generated": bool(s_phrase_hits > 0 or s_score >= SENTENCE_AI_THRESHOLD),
                 "score": round(float(s_score), 2),
             }
         )
