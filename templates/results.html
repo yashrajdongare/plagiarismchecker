@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TruthScript – Results</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+
+  <!-- ── Navigation ─────────────────────────────────────────── -->
+  <nav>
+    <div class="nav-inner">
+      <div class="logo">
+        <div class="logo-icon">🔍</div>
+        TruthScript
+      </div>
+      <div class="nav-actions">
+        <a href="/" class="btn btn-outline btn-sm">← New Analysis</a>
+        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+          <span class="theme-icon moon">🌙</span>
+          <span class="theme-icon sun">☀️</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Results Root (JS targets this element) ─────────────── -->
+  <div id="results-root">
+
+    <!-- Header -->
+    <div class="results-header animate-up">
+      <div>
+        <h2>Analysis Results</h2>
+        <div class="results-meta">
+          <strong id="res-student">—</strong> ·
+          <span id="res-title">—</span> ·
+          <span id="res-words">—</span> ·
+          <span id="res-date">—</span>
+        </div>
+      </div>
+      <div class="btn-group" style="margin-top:0;">
+        <button class="btn btn-primary btn-sm" id="btn-pdf">📄 Download PDF</button>
+        <button class="btn btn-outline btn-sm" id="btn-csv">⬇ Export CSV</button>
+      </div>
+    </div>
+
+    <div class="container">
+
+      <!-- API Error notices -->
+      <div id="api-errors" class="alert alert-error hidden mt-2"></div>
+
+      <!-- Verdict -->
+      <div id="verdict-banner" class="verdict-banner verdict-mixed animate-up delay-1"></div>
+
+      <!-- ── Top Row: Circle + Progress Bars ──────────────── -->
+      <div class="results-grid animate-up delay-2">
+
+        <!-- Circular Originality Score -->
+        <div class="card score-circle-wrap">
+          <div class="score-circle">
+            <svg viewBox="0 0 160 160">
+              <circle class="circle-bg"   cx="80" cy="80" r="70" />
+              <circle class="circle-fill" id="circle-fill" cx="80" cy="80" r="70" />
+            </svg>
+            <div class="score-center">
+              <div class="score-number" id="orig-score-num">0%</div>
+              <div class="score-label">Originality</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Progress Bars -->
+        <div class="card" style="justify-content:center; display:flex; flex-direction:column; gap:0.25rem;">
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-label">
+              <span>✅ Original</span>
+              <span id="orig-score-val">—</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill fill-orig" id="bar-orig"></div>
+            </div>
+          </div>
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-label">
+              <span>🤖 AI-Generated</span>
+              <span id="ai-score-val">—</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill fill-ai" id="bar-ai"></div>
+            </div>
+          </div>
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-label">
+              <span>📋 Plagiarised</span>
+              <span id="plag-score-val">—</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill fill-plag" id="bar-plag"></div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /results-grid -->
+
+      <!-- ── Score Cards ─────────────────────────────────────── -->
+      <div class="score-cards animate-up delay-3">
+        <div class="score-card ai">
+          <div class="icon">🤖</div>
+          <div class="val" id="ai-score-card-val">—</div>
+          <div class="lbl">AI Score</div>
+        </div>
+        <div class="score-card plag">
+          <div class="icon">📋</div>
+          <div class="val" id="plag-score-card-val">—</div>
+          <div class="lbl">Plagiarism</div>
+        </div>
+        <div class="score-card orig">
+          <div class="icon">✅</div>
+          <div class="val" id="orig-score-card-val">—</div>
+          <div class="lbl">Original</div>
+        </div>
+      </div>
+
+      <!-- ── Detailed Tabs ───────────────────────────────────── -->
+      <div class="card mt-3 animate-up">
+        <div class="tabs">
+          <button class="tab active" data-tab="highlight">🎨 Highlighted Text</button>
+          <button class="tab"        data-tab="sentences">📊 Sentence Breakdown</button>
+          <button class="tab"        data-tab="style">✍️ Writing Style</button>
+        </div>
+
+        <!-- Tab: Highlighted Text -->
+        <div class="tab-panel active" id="tab-highlight">
+          <div class="legend">
+            <span class="legend-item"><span class="legend-dot ai"></span> AI Generated</span>
+            <span class="legend-item"><span class="legend-dot plag"></span> Plagiarised</span>
+            <span class="legend-item"><span class="legend-dot orig"></span> Original</span>
+          </div>
+          <div class="highlight-view" id="highlight-view">Loading…</div>
+        </div>
+
+        <!-- Tab: Sentence Breakdown -->
+        <div class="tab-panel" id="tab-sentences">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Sentence</th>
+                  <th>Status</th>
+                  <th>AI Score</th>
+                  <th>Source</th>
+                </tr>
+              </thead>
+              <tbody id="sentence-tbody">
+                <tr><td colspan="5" class="text-center text-muted">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Tab: Writing Style -->
+        <div class="tab-panel" id="tab-style">
+          <div class="style-grid">
+            <div class="style-item">
+              <div class="style-val" id="style-avg-sent">—</div>
+              <div class="style-lbl">Avg Sentence Length</div>
+            </div>
+            <div class="style-item">
+              <div class="style-val" id="style-vocab">—</div>
+              <div class="style-lbl">Vocabulary Richness</div>
+            </div>
+            <div class="style-item">
+              <div class="style-val" id="style-avg-word">—</div>
+              <div class="style-lbl">Avg Word Length</div>
+            </div>
+            <div class="style-item">
+              <div class="style-val" id="style-grade">—</div>
+              <div class="style-lbl">Readability Grade</div>
+            </div>
+            <div class="style-item">
+              <div class="style-val" id="style-sentences">—</div>
+              <div class="style-lbl">Total Sentences</div>
+            </div>
+            <div class="style-item">
+              <div class="style-val" id="style-unique">—</div>
+              <div class="style-lbl">Unique Words</div>
+            </div>
+          </div>
+          <p class="text-muted mt-2" style="font-size:0.8rem;">
+            Writing style metrics help identify unusual shifts in vocabulary or complexity that may indicate
+            content from multiple sources.
+          </p>
+        </div>
+
+      </div><!-- /card tabs -->
+
+    </div><!-- /container -->
+  </div><!-- /results-root -->
+
+  <!-- ── Spinner Overlay ────────────────────────────────────── -->
+  <div class="spinner-overlay" id="spinner-overlay" role="status" aria-live="polite">
+    <div class="spinner"></div>
+    <div class="spinner-text" id="spinner-text">Generating report…</div>
+  </div>
+
+  <!-- ── Alert Box ──────────────────────────────────────────── -->
+  <div style="position:fixed; bottom:1.5rem; left:50%; transform:translateX(-50%); z-index:600; min-width:300px; max-width:90vw;">
+    <div id="alert-box" class="alert alert-error" role="alert"></div>
+  </div>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+  <script>
+    // Sync score card values after main script populates the progress bar values
+    function syncScoreCards() {
+      const ai   = document.getElementById('ai-score-val')?.textContent;
+      const plag = document.getElementById('plag-score-val')?.textContent;
+      const orig = document.getElementById('orig-score-val')?.textContent;
+      if (ai)   document.getElementById('ai-score-card-val').textContent   = ai;
+      if (plag) document.getElementById('plag-score-card-val').textContent = plag;
+      if (orig) document.getElementById('orig-score-card-val').textContent = orig;
+    }
+    // Small delay to ensure main script renders first
+    setTimeout(syncScoreCards, 200);
+  </script>
+</body>
+</html>

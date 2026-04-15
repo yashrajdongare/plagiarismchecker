@@ -1,0 +1,212 @@
+"""PDF report generator using fpdf2."""
+
+import io
+import os
+from datetime import datetime
+
+try:
+    from fpdf import FPDF
+    FPDF_AVAILABLE = True
+except ImportError:
+    FPDF_AVAILABLE = False
+
+
+def generate_pdf_report(analysis: dict) -> bytes | None:
+    """Generate a PDF report for the given analysis result.
+
+    Args:
+        analysis: The analysis dict returned by /analyze endpoint.
+
+    Returns:
+        PDF bytes, or None if fpdf2 is not available.
+    """
+    if not FPDF_AVAILABLE:
+        return None
+
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+
+    # ── Header ────────────────────────────────────────────────────────────────
+    pdf.set_fill_color(10, 15, 44)   # deep navy
+    pdf.rect(0, 0, 210, 30, "F")
+
+    pdf.set_font("Helvetica", "B", 22)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_xy(10, 8)
+    pdf.cell(0, 14, "TruthScript – Content Analysis Report", ln=True)
+
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_text_color(180, 190, 210)
+    pdf.set_xy(10, 20)
+    pdf.cell(0, 8, "AI & Plagiarism Detection", ln=True)
+
+    pdf.set_text_color(0, 0, 0)
+    pdf.ln(8)
+
+    # ── Metadata ──────────────────────────────────────────────────────────────
+    student_name = analysis.get("student_name", "N/A")
+    doc_title = analysis.get("document_title", "Student Submission")
+    date_str = analysis.get("date", datetime.now().strftime("%Y-%m-%d %H:%M"))
+    word_count = analysis.get("word_count", 0)
+
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 8, "Submission Details", ln=True)
+    pdf.set_font("Helvetica", "", 11)
+    pdf.set_fill_color(240, 242, 248)
+
+    _meta_row(pdf, "Student Name", student_name)
+    _meta_row(pdf, "Document Title", doc_title)
+    _meta_row(pdf, "Analysis Date", date_str)
+    _meta_row(pdf, "Word Count", str(word_count))
+    pdf.ln(5)
+
+    # ── Scores ────────────────────────────────────────────────────────────────
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 8, "Analysis Scores", ln=True)
+    pdf.ln(2)
+
+    ai_score = analysis.get("ai_score", 0)
+    plagiarism_score = analysis.get("plagiarism_score", 0)
+    originality_score = analysis.get("originality_score", 0)
+
+    _score_bar(pdf, "Originality Score", originality_score, (46, 204, 113))
+    _score_bar(pdf, "AI-Generated Score", ai_score, (231, 76, 60))
+    _score_bar(pdf, "Plagiarism Score", plagiarism_score, (241, 196, 15))
+    pdf.ln(5)
+
+    # ── Verdict ───────────────────────────────────────────────────────────────
+    verdict = analysis.get("verdict", "")
+    if verdict:
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.cell(0, 8, "Verdict", ln=True)
+        pdf.set_font("Helvetica", "", 11)
+        pdf.multi_cell(0, 7, verdict)
+        pdf.ln(5)
+
+    # ── Sentence Breakdown ────────────────────────────────────────────────────
+    sentences = analysis.get("sentences", [])
+    if sentences:
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.cell(0, 8, "Sentence-by-Sentence Breakdown", ln=True)
+        pdf.ln(2)
+
+        # Table header
+        pdf.set_fill_color(10, 15, 44)
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.cell(10, 8, "#", border=1, fill=True)
+        pdf.cell(110, 8, "Sentence", border=1, fill=True)
+        pdf.cell(35, 8, "Status", border=1, fill=True)
+        pdf.cell(35, 8, "AI Score", border=1, ln=True, fill=True)
+
+        pdf.set_text_color(0, 0, 0)
+        pdf.set_font("Helvetica", "", 8)
+
+        for idx, s in enumerate(sentences[:30], 1):  # cap at 30 rows
+            text = s.get("text", "")[:90]
+            if s.get("ai_generated"):
+                status = "AI Generated"
+                pdf.set_fill_color(255, 200, 200)
+            elif s.get("plagiarised"):
+                status = "Plagiarised"
+                pdf.set_fill_color(255, 255, 180)
+            else:
+                status = "Original"
+                pdf.set_fill_color(200, 255, 210)
+
+            score_val = f"{s.get('score', 0):.0f}%"
+
+            pdf.cell(10, 7, str(idx), border=1, fill=True)
+            pdf.cell(110, 7, text, border=1, fill=True)
+            pdf.cell(35, 7, status, border=1, fill=True)
+            pdf.cell(35, 7, score_val, border=1, ln=True, fill=True)
+
+        pdf.ln(5)
+
+    # ── Recommendations ───────────────────────────────────────────────────────
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 8, "Recommendations", ln=True)
+    pdf.set_font("Helvetica", "", 11)
+    recommendations = _build_recommendations(ai_score, plagiarism_score, originality_score)
+    for rec in recommendations:
+        pdf.cell(6, 7, chr(183))  # bullet
+        pdf.multi_cell(0, 7, rec)
+
+    # ── Footer ────────────────────────────────────────────────────────────────
+    pdf.set_y(-20)
+    pdf.set_font("Helvetica", "I", 8)
+    pdf.set_text_color(150, 150, 150)
+    pdf.cell(0, 10, f"Generated by TruthScript  |  {date_str}", align="C")
+
+    buffer = io.BytesIO()
+    pdf_bytes = pdf.output()
+    if isinstance(pdf_bytes, (bytes, bytearray)):
+        return bytes(pdf_bytes)
+    return None
+
+
+# ── Helper functions ──────────────────────────────────────────────────────────
+
+def _meta_row(pdf, label: str, value: str):
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(50, 7, label + ":", fill=True)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(0, 7, value, ln=True, fill=True)
+
+
+def _score_bar(pdf, label: str, score: float, color: tuple):
+    bar_width = 120
+    filled = int(bar_width * min(score, 100) / 100)
+
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(60, 8, label + ":")
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(20, 8, f"{score:.1f}%")
+
+    x = pdf.get_x()
+    y = pdf.get_y()
+    # Background bar
+    pdf.set_fill_color(220, 220, 220)
+    pdf.rect(x, y + 1, bar_width, 5, "F")
+    # Filled bar
+    if filled > 0:
+        pdf.set_fill_color(*color)
+        pdf.rect(x, y + 1, filled, 5, "F")
+
+    pdf.ln(10)
+
+
+def _build_recommendations(ai_score: float, plagiarism_score: float, originality_score: float) -> list:
+    recs = []
+    if ai_score > 50:
+        recs.append(
+            "High AI content detected. Request an in-person oral examination to verify student understanding."
+        )
+    elif ai_score > 20:
+        recs.append(
+            "Moderate AI content detected. Discuss the flagged sections with the student to assess comprehension."
+        )
+
+    if plagiarism_score > 30:
+        recs.append(
+            "Significant plagiarism detected. Review flagged sentences and request proper citations or rewrites."
+        )
+    elif plagiarism_score > 10:
+        recs.append(
+            "Some plagiarism detected. Remind the student of proper citation requirements."
+        )
+
+    if originality_score >= 80:
+        recs.append(
+            "The submission shows a high level of originality. Good work – encourage the student to maintain this standard."
+        )
+    elif originality_score < 30:
+        recs.append(
+            "Very low originality score. A full resubmission may be warranted."
+        )
+
+    if not recs:
+        recs.append("No significant issues detected. The submission appears largely original.")
+
+    return recs

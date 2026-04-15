@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TruthScript – AI &amp; Plagiarism Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+
+  <!-- ── Navigation ─────────────────────────────────────────── -->
+  <nav>
+    <div class="nav-inner">
+      <div class="logo">
+        <div class="logo-icon">🔍</div>
+        TruthScript
+      </div>
+      <div class="nav-actions">
+        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+          <span class="theme-icon moon">🌙</span>
+          <span class="theme-icon sun">☀️</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Hero ───────────────────────────────────────────────── -->
+  <section class="hero">
+    <h1>TruthScript</h1>
+    <p>Detect AI-generated content &amp; plagiarism in student submissions with confidence.</p>
+    <div class="hero-badges">
+      <span class="badge badge-ai">🤖 AI Detection</span>
+      <span class="badge badge-plag">📋 Plagiarism Check</span>
+      <span class="badge badge-orig">✅ Originality Score</span>
+    </div>
+  </section>
+
+  <!-- ── Main Form ──────────────────────────────────────────── -->
+  <div class="container">
+    <div id="alert-box" class="alert alert-error" role="alert"></div>
+
+    <div class="card animate-up">
+      <form id="analyze-form" novalidate>
+
+        <!-- Student Details -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+          <div class="form-group">
+            <label for="student-name">Student Name</label>
+            <input type="text" id="student-name" name="student_name"
+                   placeholder="e.g. Jane Doe" autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label for="doc-title">Document Title</label>
+            <input type="text" id="doc-title" name="document_title"
+                   placeholder="e.g. History Essay" autocomplete="off" />
+          </div>
+        </div>
+
+        <!-- Text Area -->
+        <div class="form-group">
+          <label for="text-input">Paste Text (minimum 100 words)</label>
+          <textarea id="text-input" name="text"
+                    placeholder="Paste the student's essay or report here…"></textarea>
+          <div class="char-count" id="char-count">0 words</div>
+        </div>
+
+        <!-- Divider -->
+        <div style="text-align:center; color:var(--text-muted); font-size:0.82rem; margin:0.5rem 0;">
+          — or upload a file —
+        </div>
+
+        <!-- Drag & Drop Upload -->
+        <div class="drop-zone" id="drop-zone">
+          <input type="file" id="file-input" name="file"
+                 accept=".txt,.pdf,.docx" aria-label="Upload file" />
+          <div class="drop-icon">📂</div>
+          <div class="drop-text">Drag &amp; drop or click to upload</div>
+          <div class="drop-sub">.txt · .pdf · .docx · max 5 MB</div>
+        </div>
+
+        <!-- Actions -->
+        <div class="btn-group">
+          <button type="submit" class="btn btn-primary w-full">
+            <span>🔬</span> Analyse Submission
+          </button>
+        </div>
+
+      </form>
+    </div>
+
+    <!-- ── History Section ──────────────────────────────────── -->
+    <section id="history-section">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.5rem;">
+        <h3>📜 Recent Submissions</h3>
+        <a href="/export-csv" class="btn btn-outline btn-sm">⬇ Export CSV</a>
+      </div>
+      <div class="card mt-2">
+        <div class="table-wrap">
+          <table id="history-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Student</th>
+                <th>Title</th>
+                <th>AI %</th>
+                <th>Plagiarism %</th>
+                <th>Originality %</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody id="history-tbody">
+              <tr><td colspan="7" class="text-center text-muted">Loading history…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </div><!-- /container -->
+
+  <!-- ── Spinner Overlay ────────────────────────────────────── -->
+  <div class="spinner-overlay" id="spinner-overlay" role="status" aria-live="polite">
+    <div class="spinner"></div>
+    <div class="spinner-text" id="spinner-text">Analysing your text…</div>
+  </div>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+  <script>
+    // Load history on page ready
+    (async function loadHistory() {
+      const tbody = document.getElementById('history-tbody');
+      try {
+        const res  = await fetch('/history');
+        const rows = await res.json();
+        if (!rows.length) {
+          tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No submissions yet.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = rows.map(r => `
+          <tr>
+            <td>${r.id}</td>
+            <td>${escapeHtml(r.student_name || '—')}</td>
+            <td>${escapeHtml(r.document_title || '—')}</td>
+            <td style="color:var(--ai-red)">${(r.ai_score || 0).toFixed(1)}%</td>
+            <td style="color:var(--plag-yellow)">${(r.plagiarism_score || 0).toFixed(1)}%</td>
+            <td style="color:var(--orig-green)">${(r.originality_score || 0).toFixed(1)}%</td>
+            <td class="text-muted">${r.submitted_at || ''}</td>
+          </tr>`).join('');
+      } catch {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Could not load history.</td></tr>';
+      }
+    })();
+  </script>
+</body>
+</html>
