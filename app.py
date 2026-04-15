@@ -9,7 +9,10 @@ import re
 import sqlite3
 from datetime import datetime
 
+from dotenv import load_dotenv
 from flask import Flask, jsonify, redirect, render_template, request, send_file, url_for
+
+load_dotenv()  # Load API keys from .env file before anything else
 
 from utils.ai_detector import detect_ai_content
 from utils.plagiarism_checker import check_plagiarism
